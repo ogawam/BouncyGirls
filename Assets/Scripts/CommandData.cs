@@ -2,27 +2,44 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+public class InputHistory {
+	public float time;
+	public Define.Button button;
+}
+
 [System.Serializable]
 public class CommandData {
+
+	[SerializeField] string _name;
+	public string name { get { return _name; } }
 
 	// 成立条件
 	[SerializeField] Define.Condition _requiredCondition;
 
 	[SerializeField] List<Define.Button> _command;
-	public bool IsSuccess(Define.Condition condition, Define.Button[] input) {
-		if(_condition != (_condition & condition)) {
+	[SerializeField] Define.Button _input;
+	public bool IsSuccess(Define.Condition condition, InputHistory[] input, Define.Button current) {
+		if(!IsKeep(current)) {
+			return false;
+		}
+
+		if(_requiredCondition != (_requiredCondition & condition)) {
 			return false;
 		}
 		
-		if(_command.Count < input.Length) {
+		if(_command.Count <= input.Length) {
 			for(int i = 0; i < _command.Count; ++i) {
-				if(_command[i] != input[i]) {
+				if(_command[i] != input[i].button) {
 					return false;
 				}
 			}
 			return true;
 		}
 		return false;
+	}
+
+	public bool IsKeep(Define.Button current) {
+		return _input == (_input & current);
 	}
 
 	// 性能

@@ -2244,7 +2244,55 @@ MonoBehaviour:
   _right: 100
   _forceV: 350
   _forceH: 2
-  _commands: []
+  _commands:
+  - _flag: 2
+    _name: "\u524D\u9032"
+    _requiredCondition: 64
+    _command: 
+    _input: 2
+    _condition: 0
+    _damageValue: 0
+    _damagePoint: 4
+    _totalTime: 0
+    _cancelStartTime: 0
+    _cancelEndTime: 0
+    _force: {x: 0, y: 0}
+    _groundMove: 2
+    _animKey: move
+    _animKeyType: 1
+    _animKeyValue: 1
+  - _flag: 2
+    _name: "\u5F8C\u9000"
+    _requiredCondition: 64
+    _command: 
+    _input: 1
+    _condition: 0
+    _damageValue: 0
+    _damagePoint: 4
+    _totalTime: 0
+    _cancelStartTime: 0
+    _cancelEndTime: 0
+    _force: {x: 0, y: 0}
+    _groundMove: -2
+    _animKey: move
+    _animKeyType: 1
+    _animKeyValue: -1
+  - _flag: 2
+    _name: "\u3057\u3083\u304C\u307F"
+    _requiredCondition: 64
+    _command: 
+    _input: 8
+    _condition: 4
+    _damageValue: 0
+    _damagePoint: 4
+    _totalTime: 0
+    _cancelStartTime: 0
+    _cancelEndTime: 0
+    _force: {x: 0, y: 0}
+    _groundMove: 0
+    _animKey: crouch
+    _animKeyType: 2
+    _animKeyValue: 1
 --- !u!135 &135197634936042332
 SphereCollider:
   m_ObjectHideFlags: 1
@@ -2517,8 +2565,8 @@ SkinnedMeshRenderer:
   m_BlendShapeWeights: []
   m_RootBone: {fileID: 0}
   m_AABB:
-    m_Center: {x: -8.886022e-10, y: 0.0000000034322056, z: -0.003910196}
-    m_Extent: {x: 0.0016818481, y: 0.0016848884, z: 0.004356194}
+    m_Center: {x: -0.0000000012772389, y: 0.0000000032014214, z: -0.003910195}
+    m_Extent: {x: 0.0037908508, y: 0.004329055, z: 0.004952731}
   m_DirtyAABB: 0
 --- !u!144 &144058066595324592
 CharacterJoint:

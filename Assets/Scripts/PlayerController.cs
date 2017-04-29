@@ -20,7 +20,7 @@ public class PlayerController : MonoBehaviour {
 
 	[SerializeField] List<CommandData> _commands = new List<CommandData>();
 
-	List<Define.Button> _inputButtonLog = new List<Define.Button>();
+	List<InputHistory> _inputHistories = new List<InputHistory>();
 	Define.Button _inputButton = 0;
 
 	float _standHeight;
@@ -42,6 +42,8 @@ public class PlayerController : MonoBehaviour {
 	string _inputG;
 	string _inputP;
 	string _inputK;
+
+	float _commandCount = 0;
 
 	public void Setup(int no) {
 		_playerNo = no;
@@ -76,6 +78,9 @@ public class PlayerController : MonoBehaviour {
 		if(_jumpWait <= 0 && _landWait <= 0) {
 			if(Physics.Raycast(position, Vector3.down, 1f, 1 << LayerMask.NameToLayer("Terrain"))) {
 				_rootCollider.height = _standHeight;
+				_condition |= Define.Condition.Ground;
+				_condition &= ~Define.Condition.Air;
+
 				constrains |= RigidbodyConstraints.FreezeRotationX;
 				if(_animator.GetFloat("jump") > 0) {
 					_animator.SetFloat("jump",0);
@@ -84,6 +89,9 @@ public class PlayerController : MonoBehaviour {
 			}
 		}
 		else {
+			_condition |= Define.Condition.Air;
+			_condition &= ~Define.Condition.Ground;
+
 			_rootCollider.height = 0;
 			constrains &= ~RigidbodyConstraints.FreezeRotationX;
 		}
@@ -136,24 +144,10 @@ public class PlayerController : MonoBehaviour {
 */
 		if(_playingCommand != null) {
 			position.x += _playingCommand.groundMove * Time.deltaTime;
-			if(_playingCommand.totalTime == 0) {
-				if(_inputButton == 0) {
-					switch(_playingCommand.animKeyType) {
-					case Define.AnimKeyType.Bool:
-						_animator.SetBool(_playingCommand.animKey, false);
-						break;
-					case Define.AnimKeyType.Int:
-						_animator.SetInteger(_playingCommand.animKey, 0);
-						break;
-					case Define.AnimKeyType.Float:
-						_animator.SetFloat(_playingCommand.animKey, 0);
-						break;
-					}
-					_playingCommand = null;
-				}
+			if(!_playingCommand.IsKeep(_inputButton)) {
+				FinishCommand();
 			}
 		}
-
 		transform.position = position;
 
 		Define.Button input = 0;
@@ -190,41 +184,81 @@ public class PlayerController : MonoBehaviour {
 		}
 
 		if(input != _inputButton && input != 0) {
-			_inputButtonLog.Insert(0, input & (input ^ _inputButton));
+			_inputHistories.Insert(0, new InputHistory(){ time = Time.time, button = input & (input ^ _inputButton) });
 		}
-		if(_inputButtonLog.Count > 16) {
-			_inputButtonLog.RemoveRange(16, _inputButtonLog.Count - 16);
+		for(int i = 0; i < _inputHistories.Count; ++i) {
+			if(Time.time - _inputHistories[i].time >= 1) {
+				_inputHistories.RemoveRange(i, _inputHistories.Count - i);
+				break;
+			}
 		}
 		_inputButton = input;
 
 		foreach(var command in _commands) {
-			if(command.IsSuccess(_condition, _inputButtonLog.ToArray())) {
-				switch(command.animKeyType) {
-				case Define.AnimKeyType.Bool:
-					_animator.SetBool(command.animKey, command.animKeyValue != 0);
-					break;
-				case Define.AnimKeyType.Int:
-					_animator.SetInteger(command.animKey, Mathf.FloorToInt(command.animKeyValue));
-					break;
-				case Define.AnimKeyType.Float:
-					_animator.SetFloat(command.animKey, command.animKeyValue);
-					break;
+			if(command.IsSuccess(_condition, _inputHistories.ToArray(), _inputButton)) {
+				if(_playingCommand != command) {
+					FinishCommand();
+
+					switch(command.animKeyType) {
+					case Define.AnimKeyType.Bool:
+						_animator.SetBool(command.animKey, command.animKeyValue != 0);
+						break;
+					case Define.AnimKeyType.Int:
+						_animator.SetInteger(command.animKey, Mathf.FloorToInt(command.animKeyValue));
+						break;
+					case Define.AnimKeyType.Float:
+						_animator.SetFloat(command.animKey, command.animKeyValue);
+						break;
+					}
+					if(command.force.sqrMagnitude > 0) {
+						_rootRigid.AddForce(command.force);
+					}
+					_playingCommand = command;
 				}
-				_playingCommand = command;
+				break;
 			}
 		}
 	}
 
+	void FinishCommand() {
+		if(_playingCommand != null) {
+			switch(_playingCommand.animKeyType) {
+			case Define.AnimKeyType.Bool:
+				_animator.SetBool(_playingCommand.animKey, false);
+				break;
+			case Define.AnimKeyType.Int:
+				_animator.SetInteger(_playingCommand.animKey, 0);
+				break;
+			case Define.AnimKeyType.Float:
+				_animator.SetFloat(_playingCommand.animKey, 0);
+				break;
+			}
+			_condition &= ~Define.Condition.Crouch;
+		}
+		_playingCommand = null;		
+	}
+
 	void OnGUI() {
+		GUILayout.BeginArea(new Rect(Screen.width / 2 * (_playerNo - 1), 0, Screen.width / 2, Screen.height / 2));
 		GUILayout.BeginHorizontal();
-		if(_playerNo > 1) {
-			GUILayout.Space(Screen.width / 2);
-		}
 		GUILayout.BeginVertical();
-		foreach(var button in _inputButtonLog) {
-			GUILayout.Label(button.ToString());
+		GUILayout.Label(":condition:");
+		GUILayout.Label(_condition.ToString());
+
+		GUILayout.Label(":current:");
+		GUILayout.Label(_inputButton.ToString());
+
+		GUILayout.Label(":history:");
+		foreach(var history in _inputHistories) {
+			GUILayout.Label(history.button.ToString());
 		}
+
 		GUILayout.EndVertical();
+		GUILayout.FlexibleSpace();
+		if(_playingCommand != null) {
+			GUILayout.Label(_playingCommand.name);
+		}
 		GUILayout.EndHorizontal();
+		GUILayout.EndArea();
 	}
 }

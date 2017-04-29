@@ -5,6 +5,7 @@ using UnityEngine;
 static public class Define {
 
 	public enum Button {
+		None = 0,
 		L = (1<<0),
 		R = (1<<1),
 		U = (1<<2),
@@ -15,6 +16,7 @@ static public class Define {
 	}
 
 	public enum Condition {
+		None = 0,
 		Down	= (1<<0),	// やられ
 		Air		= (1<<1),	// 空中
 		Crouch	= (1<<2),	// しゃがみ
@@ -25,6 +27,7 @@ static public class Define {
 	}
 
 	public enum DamagePoint {
+		None = 0,
 		Head		= (1<<0),
 		Body		= (1<<1),
 		LShoulder	= (1<<2),
