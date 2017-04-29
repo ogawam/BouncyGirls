@@ -16,7 +16,8 @@ public class CommandData {
 	// 成立条件
 	[SerializeField] Define.Condition _requiredCondition;
 
-	[SerializeField] List<Define.Button> _command;
+	[UnityEngine.Serialization.FormerlySerializedAs("_command")]
+	[SerializeField] List<Define.Button> _buttons;
 	[SerializeField] Define.Button _input;
 	public bool IsSuccess(Define.Condition condition, InputHistory[] input, Define.Button current) {
 		if(!IsKeep(current)) {
@@ -27,11 +28,23 @@ public class CommandData {
 			return false;
 		}
 		
-		if(_command.Count <= input.Length) {
-			for(int i = 0; i < _command.Count; ++i) {
-				if(_command[i] != input[i].button) {
+		if(_buttons.Count <= input.Length) {
+			for(int i = 0; i < _buttons.Count; ++i) {
+				var button = input[i].button;
+				if((condition & Define.Condition.Reverce) != 0) {
+					button &= ~(Define.Button.L | Define.Button.R);
+					if((input[i].button & Define.Button.L) != 0)
+						button |= Define.Button.R;
+					if((input[i].button & Define.Button.R) != 0)
+						button |= Define.Button.L;
+				}
+				if(_buttons[i] != button || input[i].time < 0) {
 					return false;
 				}
+			}
+			// 入力に使った場合は無効化する
+			for(int i = 0; i < _buttons.Count; ++i) {
+				input[i].time = -1;
 			}
 			return true;
 		}
@@ -49,8 +62,8 @@ public class CommandData {
 	[SerializeField] float _damageValue = 0;
 	public float damage { get { return _damageValue; } }
 
-	[SerializeField] Define.DamagePoint _damagePoint;
-	public Define.DamagePoint damagePoint { get { return _damagePoint; } }
+	[SerializeField] Define.BodyPart _damagePoint;
+	public Define.BodyPart damagePoint { get { return _damagePoint; } }
 
 	[SerializeField] float _totalTime = 0;
 	public float totalTime { get { return _totalTime; } }

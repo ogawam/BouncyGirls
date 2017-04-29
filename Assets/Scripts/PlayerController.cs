@@ -4,19 +4,30 @@ using UnityEngine;
 
 public class PlayerController : MonoBehaviour {
 
+	class PartInfo {
+		public Rigidbody body;
+		public Collider attack;
+		public Vector3 pos;
+	}
+
 	Rigidbody _rootRigid;
 	CapsuleCollider _rootCollider;
 	Animator _animator;
 
 	[SerializeField] Transform _head;
 
-	[SerializeField] KeyCode _up;
-	[SerializeField] KeyCode _down;
-	[SerializeField] KeyCode _left;
-	[SerializeField] KeyCode _right;
-
-	[SerializeField] float _forceV;
-	[SerializeField] float _forceH;
+	[SerializeField] Rigidbody _rigidHead;
+	[SerializeField] Rigidbody _rigidBody;
+	[SerializeField] Rigidbody _rigidLShoulder;
+	[SerializeField] Rigidbody _rigidRShoulder;
+	[SerializeField] Rigidbody _rigidLArm;
+	[SerializeField] Rigidbody _rigidRArm;
+	[SerializeField] Rigidbody _rigidLHand;
+	[SerializeField] Rigidbody _rigidRHand;
+	[SerializeField] Rigidbody _rigidLKnee;
+	[SerializeField] Rigidbody _rigidRKnee;
+	[SerializeField] Rigidbody _rigidLFoot;
+	[SerializeField] Rigidbody _rigidRFoot;
 
 	[SerializeField] List<CommandData> _commands = new List<CommandData>();
 
@@ -30,8 +41,7 @@ public class PlayerController : MonoBehaviour {
 	Transform _rivalTrans;
 	public Transform rivalTrans { set { _rivalTrans = value; } }
 
-	float _jumpWait = 0;
-	float _landWait = 0;
+	Dictionary<Define.BodyPart, PartInfo> _bodyParts = new Dictionary<Define.BodyPart, PartInfo>();
 
 	int _playerNo = 0;
 	Define.Condition _condition = 0;
@@ -45,6 +55,13 @@ public class PlayerController : MonoBehaviour {
 
 	float _commandCount = 0;
 
+	void RegisterBodyPart(Define.BodyPart part, Rigidbody rigidbody) {
+		_bodyParts[part] = new PartInfo(){
+			body = rigidbody,
+			pos = rigidbody.transform.localPosition
+		};
+	}
+
 	public void Setup(int no) {
 		_playerNo = no;
 		_inputUD = string.Format("{0}P_UD", _playerNo);
@@ -52,6 +69,19 @@ public class PlayerController : MonoBehaviour {
 		_inputG = string.Format("{0}P_G", _playerNo);
 		_inputP = string.Format("{0}P_P", _playerNo);
 		_inputK = string.Format("{0}P_K", _playerNo);
+
+		RegisterBodyPart(Define.BodyPart.Body, _rigidBody);
+		RegisterBodyPart(Define.BodyPart.Head, _rigidHead);
+		RegisterBodyPart(Define.BodyPart.LShoulder, _rigidLShoulder);
+		RegisterBodyPart(Define.BodyPart.LArm, _rigidLArm);
+		RegisterBodyPart(Define.BodyPart.LHand, _rigidLHand);
+		RegisterBodyPart(Define.BodyPart.RShoulder, _rigidRShoulder);
+		RegisterBodyPart(Define.BodyPart.RArm, _rigidRArm);
+		RegisterBodyPart(Define.BodyPart.RHand, _rigidRHand);
+		RegisterBodyPart(Define.BodyPart.LKnee, _rigidLKnee);
+		RegisterBodyPart(Define.BodyPart.LFoot, _rigidLFoot);
+		RegisterBodyPart(Define.BodyPart.RKnee, _rigidRKnee);
+		RegisterBodyPart(Define.BodyPart.RFoot, _rigidRFoot);
 	}
 
 	void Awake () {
@@ -71,81 +101,24 @@ public class PlayerController : MonoBehaviour {
 		var rotation = Quaternion.Euler( (rivalVec.x < 0 ? Vector3.down : Vector3.up) * 90);
 		transform.rotation = Quaternion.Lerp(transform.rotation, rotation, 0.2f);
 
+		if(rivalVec.x < 0)
+			_condition |= Define.Condition.Reverce;
+		else _condition &= ~Define.Condition.Reverce;
+
 		var position = transform.position;
 		position.z = 0;
 
-		var constrains = _rootRigid.constraints;
-		if(_jumpWait <= 0 && _landWait <= 0) {
-			if(Physics.Raycast(position, Vector3.down, 1f, 1 << LayerMask.NameToLayer("Terrain"))) {
-				_rootCollider.height = _standHeight;
-				_condition |= Define.Condition.Ground;
-				_condition &= ~Define.Condition.Air;
-
-				constrains |= RigidbodyConstraints.FreezeRotationX;
-				if(_animator.GetFloat("jump") > 0) {
-					_animator.SetFloat("jump",0);
-					Debug.Log("land");
-				}
-			}
-		}
-		else {
-			_condition |= Define.Condition.Air;
-			_condition &= ~Define.Condition.Ground;
-
-			_rootCollider.height = 0;
-			constrains &= ~RigidbodyConstraints.FreezeRotationX;
-		}
-		_rootRigid.constraints = constrains;
-
-		_landWait -= Time.deltaTime;
-
 		rotation = Quaternion.LookRotation(rivalVec, Vector3.up);
 		rotation.eulerAngles += Vector3.up * (rivalVec.x > 0 ? 45f: -45f);
-		_head.rotation = Quaternion.Lerp(_head.rotation, rotation, 0.25f);
-/*
-		if(_jumpWait > 0) {
-			_jumpWait -= Time.deltaTime;
-			if(_jumpWait <= 0) {
-				_rootRigid.AddForce(Vector3.up * _forceV);
-				_landWait = 0.5f;
-				Debug.Log("jump");
-			}
-		}
-		else if(_animator.GetFloat("jump") == 0) { 
-			if(Input.GetKeyDown(_up)) {
-				_jumpWait = 4 / 60f;
-				_animator.SetFloat("jump",0.5f);	
-			}
-			if(Input.GetKey(_down)) {
-				_animator.SetBool("crouch",true);
-			}
-			else {
-				_animator.SetBool("crouch",false);
-			}
-			if(Input.GetKey(_left)) {
-				_animator.SetFloat("move",-2f);
-				position += Vector3.left * _forceH * Time.deltaTime;
-			}
-			else if(Input.GetKey(_right)) {
-				_animator.SetFloat("move",2f);
-				position += Vector3.right * _forceH * Time.deltaTime;
-			}
-			else {
-				_animator.SetFloat("move",0);
-			}
-		}
-		if(Input.GetKeyDown(_down)) {
-			_rootRigid.AddForce(Vector3.down * _forceV);
-		}
+		_head.rotation = Quaternion.Lerp(_head.rotation, rotation, 0.01f);
 
-		if(Input.GetKeyDown(KeyCode.Space)) {
-			_rootRigid.rotation = Quaternion.identity;
-		}
-*/
 		if(_playingCommand != null) {
+			_commandCount += Time.deltaTime;
 			position.x += _playingCommand.groundMove * Time.deltaTime;
-			if(!_playingCommand.IsKeep(_inputButton)) {
-				FinishCommand();
+			if((_condition & Define.Condition.Ground) != 0) {
+				if(_commandCount > _playingCommand.totalTime || !_playingCommand.IsKeep(_inputButton)) {
+					FinishCommand();
+				}
 			}
 		}
 		transform.position = position;
@@ -187,7 +160,7 @@ public class PlayerController : MonoBehaviour {
 			_inputHistories.Insert(0, new InputHistory(){ time = Time.time, button = input & (input ^ _inputButton) });
 		}
 		for(int i = 0; i < _inputHistories.Count; ++i) {
-			if(Time.time - _inputHistories[i].time >= 1) {
+			if(Time.time - _inputHistories[i].time >= 0.5f) {
 				_inputHistories.RemoveRange(i, _inputHistories.Count - i);
 				break;
 			}
@@ -211,12 +184,28 @@ public class PlayerController : MonoBehaviour {
 						break;
 					}
 					if(command.force.sqrMagnitude > 0) {
-						_rootRigid.AddForce(command.force);
+						var force = command.force;
+						if((_condition & Define.Condition.Reverce) != 0)
+							force.x = -force.x;
+						_rootRigid.AddForce(force, ForceMode.VelocityChange);
 					}
+					if((command.condition & Define.Condition.Air) != 0) {
+						_condition |= Define.Condition.Air;
+						_condition &= ~Define.Condition.Ground;
+
+						_rootCollider.height = 0;
+						_rootRigid.constraints &= ~RigidbodyConstraints.FreezeRotationX;
+					}
+					_condition |= command.condition;
 					_playingCommand = command;
+					_commandCount = 0;
 				}
 				break;
 			}
+		}
+
+		foreach(var part in _bodyParts.Values) {
+			part.body.transform.localPosition = part.pos;
 		}
 	}
 
@@ -236,6 +225,20 @@ public class PlayerController : MonoBehaviour {
 			_condition &= ~Define.Condition.Crouch;
 		}
 		_playingCommand = null;		
+	}
+
+	void OnCollisionEnter(Collision collision) {
+		foreach(var contact in collision.contacts) {
+			if(contact.normal.y > 0.5f) {
+				_rootCollider.height = _standHeight;
+				_condition |= Define.Condition.Ground;
+				_condition &= ~Define.Condition.Air;
+
+				_rootRigid.constraints |= RigidbodyConstraints.FreezeRotationX;
+				_animator.SetFloat("jump",0);
+				break;
+			}
+		}
 	}
 
 	void OnGUI() {

@@ -24,9 +24,10 @@ static public class Define {
 		Guard	= (1<<4),	// ガード
 		Throw	= (1<<5),	// 投げ
 		Ground	= (1<<6),	// 地上
+		Reverce	= (1<<7),	// ２Ｐ
 	}
 
-	public enum DamagePoint {
+	public enum BodyPart {
 		None = 0,
 		Head		= (1<<0),
 		Body		= (1<<1),
