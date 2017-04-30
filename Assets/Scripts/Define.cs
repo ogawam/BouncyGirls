@@ -4,8 +4,8 @@ using UnityEngine;
 
 static public class Define {
 
+	[System.Flags]
 	public enum Button {
-		None = 0,
 		L = (1<<0),
 		R = (1<<1),
 		U = (1<<2),
@@ -15,20 +15,22 @@ static public class Define {
 		K = (1<<6)
 	}
 
+
+	[System.Flags]
 	public enum Condition {
-		None = 0,
-		Down	= (1<<0),	// やられ
+		Damage	= (1<<0),	// やられ
 		Air		= (1<<1),	// 空中
 		Crouch	= (1<<2),	// しゃがみ
 		Full	= (1<<3),	// フルパワー
 		Guard	= (1<<4),	// ガード
 		Throw	= (1<<5),	// 投げ
-		Ground	= (1<<6),	// 地上
+		Dash	= (1<<6),	// ダッシュ
 		Reverce	= (1<<7),	// ２Ｐ
+		Look	= (1<<8),	// 敵を見る
 	}
 
+	[System.Flags]
 	public enum BodyPart {
-		None = 0,
 		Head		= (1<<0),
 		Body		= (1<<1),
 		LShoulder	= (1<<2),

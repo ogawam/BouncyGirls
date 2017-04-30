@@ -1,14 +1,24 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
+using DG.Tweening;
+
+[System.Serializable]
+public class PartInfo {
+	[SerializeField] Rigidbody _rigid;
+	public Rigidbody rigid { get {return _rigid; } }
+
+	[SerializeField] AttackController _attack;
+	public AttackController attack { get { return _attack; } }
+
+	[SerializeField] Define.BodyPart _type;
+	public Define.BodyPart type { get { return _type; } }
+
+	[System.NonSerialized] public Vector3 pos;
+}
 
 public class PlayerController : MonoBehaviour {
-
-	class PartInfo {
-		public Rigidbody body;
-		public Collider attack;
-		public Vector3 pos;
-	}
 
 	Rigidbody _rootRigid;
 	CapsuleCollider _rootCollider;
@@ -16,32 +26,26 @@ public class PlayerController : MonoBehaviour {
 
 	[SerializeField] Transform _head;
 
-	[SerializeField] Rigidbody _rigidHead;
-	[SerializeField] Rigidbody _rigidBody;
-	[SerializeField] Rigidbody _rigidLShoulder;
-	[SerializeField] Rigidbody _rigidRShoulder;
-	[SerializeField] Rigidbody _rigidLArm;
-	[SerializeField] Rigidbody _rigidRArm;
-	[SerializeField] Rigidbody _rigidLHand;
-	[SerializeField] Rigidbody _rigidRHand;
-	[SerializeField] Rigidbody _rigidLKnee;
-	[SerializeField] Rigidbody _rigidRKnee;
-	[SerializeField] Rigidbody _rigidLFoot;
-	[SerializeField] Rigidbody _rigidRFoot;
-
 	[SerializeField] List<CommandData> _commands = new List<CommandData>();
+
+	[SerializeField] PartInfo[] _partInfos;
+
+	[SerializeField] Vector2 _playerOffset;
 
 	List<InputHistory> _inputHistories = new List<InputHistory>();
 	Define.Button _inputButton = 0;
 
 	float _standHeight;
 
+	float _comboDispCount;
+
 	public Vector2 position { get { return _rootRigid.transform.position; } }
 
+	PlayerController _rival;
 	Transform _rivalTrans;
-	public Transform rivalTrans { set { _rivalTrans = value; } }
+	public PlayerController rival { set { _rival = value; _rivalTrans = _rival.transform; } }
 
-	Dictionary<Define.BodyPart, PartInfo> _bodyParts = new Dictionary<Define.BodyPart, PartInfo>();
+	Dictionary<Define.BodyPart, PartInfo> _partMap = new Dictionary<Define.BodyPart, PartInfo>();
 
 	int _playerNo = 0;
 	Define.Condition _condition = 0;
@@ -54,13 +58,13 @@ public class PlayerController : MonoBehaviour {
 	string _inputK;
 
 	float _commandCount = 0;
+	float _blowCount = 0;
 
-	void RegisterBodyPart(Define.BodyPart part, Rigidbody rigidbody) {
-		_bodyParts[part] = new PartInfo(){
-			body = rigidbody,
-			pos = rigidbody.transform.localPosition
-		};
-	}
+	int _comboCount = 0;
+
+	int _hp = 1000;
+	[SerializeField] Image _hpGauge;
+	[SerializeField] Text _comboText;
 
 	public void Setup(int no) {
 		_playerNo = no;
@@ -70,18 +74,19 @@ public class PlayerController : MonoBehaviour {
 		_inputP = string.Format("{0}P_P", _playerNo);
 		_inputK = string.Format("{0}P_K", _playerNo);
 
-		RegisterBodyPart(Define.BodyPart.Body, _rigidBody);
-		RegisterBodyPart(Define.BodyPart.Head, _rigidHead);
-		RegisterBodyPart(Define.BodyPart.LShoulder, _rigidLShoulder);
-		RegisterBodyPart(Define.BodyPart.LArm, _rigidLArm);
-		RegisterBodyPart(Define.BodyPart.LHand, _rigidLHand);
-		RegisterBodyPart(Define.BodyPart.RShoulder, _rigidRShoulder);
-		RegisterBodyPart(Define.BodyPart.RArm, _rigidRArm);
-		RegisterBodyPart(Define.BodyPart.RHand, _rigidRHand);
-		RegisterBodyPart(Define.BodyPart.LKnee, _rigidLKnee);
-		RegisterBodyPart(Define.BodyPart.LFoot, _rigidLFoot);
-		RegisterBodyPart(Define.BodyPart.RKnee, _rigidRKnee);
-		RegisterBodyPart(Define.BodyPart.RFoot, _rigidRFoot);
+		foreach(var partInfo in _partInfos) {
+			partInfo.pos = partInfo.rigid.transform.localPosition;
+			if(no > 1) {
+				partInfo.rigid.gameObject.layer = LayerMask.NameToLayer("2PDamage");
+				if(partInfo.attack != null) {
+					partInfo.attack.gameObject.layer = LayerMask.NameToLayer("2PAttack");
+				}
+			}
+			if(partInfo.attack != null) {
+				partInfo.attack.gameObject.SetActive(false);
+			}
+			_partMap[partInfo.type] = partInfo;
+		}
 	}
 
 	void Awake () {
@@ -99,29 +104,86 @@ public class PlayerController : MonoBehaviour {
 	void Update () {
 		var rivalVec = _rivalTrans.transform.position - transform.position;
 		var rotation = Quaternion.Euler( (rivalVec.x < 0 ? Vector3.down : Vector3.up) * 90);
-		transform.rotation = Quaternion.Lerp(transform.rotation, rotation, 0.2f);
 
-		if(rivalVec.x < 0)
-			_condition |= Define.Condition.Reverce;
-		else _condition &= ~Define.Condition.Reverce;
+		if((_condition & Define.Condition.Air) == 0) {
+			transform.rotation = Quaternion.Lerp(transform.rotation, rotation, 0.2f);
+			if(rivalVec.x < 0)
+				_condition |= Define.Condition.Reverce;
+			else _condition &= ~Define.Condition.Reverce;
+		}
 
 		var position = transform.position;
 		position.z = 0;
 
-		rotation = Quaternion.LookRotation(rivalVec, Vector3.up);
-		rotation.eulerAngles += Vector3.up * (rivalVec.x > 0 ? 45f: -45f);
-		_head.rotation = Quaternion.Lerp(_head.rotation, rotation, 0.01f);
+		if((_condition & Define.Condition.Look) != 0) {
+			rotation = Quaternion.LookRotation(rivalVec, Vector3.up);
+			rotation.eulerAngles += Vector3.up * (rivalVec.x > 0 ? 45f: -45f);
+			_head.rotation = Quaternion.Lerp(_head.rotation, rotation, 0.25f);
+		}
+
+		if((_condition & Define.Condition.Damage) != 0) {
+			_blowCount -= Time.deltaTime;
+			if(_blowCount < 0) {
+				_animator.SetBool("damage", false);
+				_condition &= ~Define.Condition.Damage;
+				_comboCount = 0;
+			}
+		}
+
+		if(_comboDispCount > 0) {
+			_comboDispCount -= Time.deltaTime;
+			_comboText.enabled = _comboDispCount > 0;
+		}
 
 		if(_playingCommand != null) {
+			if(_playingCommand.damagePoint != 0) {
+				var attack = _partMap[_playingCommand.damagePoint].attack;
+				if(attack.isHit) {
+					_rival.HitAttack(_playingCommand, attack.transform.position + Vector3.back, _rootRigid.velocity);
+					attack.gameObject.SetActive(false);
+				}
+			}
+
+			var prevCount = _commandCount; 
 			_commandCount += Time.deltaTime;
-			position.x += _playingCommand.groundMove * Time.deltaTime;
-			if((_condition & Define.Condition.Ground) != 0) {
+
+			_animator.SetBool("cancel", false);
+
+			if(_playingCommand.cancelStartTime > 0) {
+				if(prevCount < _playingCommand.cancelStartTime && _commandCount >= _playingCommand.cancelStartTime) {
+					switch(_playingCommand.animKeyType) {
+					case Define.AnimKeyType.Bool:
+						_animator.SetBool(_playingCommand.animKey, false);
+						break;
+					case Define.AnimKeyType.Int:
+						_animator.SetInteger(_playingCommand.animKey, 0);
+						break;
+					case Define.AnimKeyType.Float:
+						_animator.SetFloat(_playingCommand.animKey, 0);
+						break;
+					}
+				}
+			}
+
+			if((_condition & Define.Condition.Reverce) != 0)
+				position.x -= _playingCommand.groundMove * Time.deltaTime;
+			else position.x += _playingCommand.groundMove * Time.deltaTime;
+			if((_condition & Define.Condition.Air) == 0) {
 				if(_commandCount > _playingCommand.totalTime || !_playingCommand.IsKeep(_inputButton)) {
 					FinishCommand();
 				}
 			}
 		}
+		if(Mathf.Abs(rivalVec.x) < _playerOffset.x && Mathf.Abs(rivalVec.y) < _playerOffset.y) {
+			if(rivalVec.x > 0)
+				position.x += -_playerOffset.x + rivalVec.x;
+			else position.x += _playerOffset.x + rivalVec.x;
+		}
 		transform.position = position;
+
+		if(Mathf.Abs(_rootRigid.velocity.x) < 1) {
+			_condition &= ~Define.Condition.Dash;
+		}
 
 		Define.Button input = 0;
 		float lr = Input.GetAxis(_inputLR);
@@ -167,45 +229,63 @@ public class PlayerController : MonoBehaviour {
 		}
 		_inputButton = input;
 
-		foreach(var command in _commands) {
-			if(command.IsSuccess(_condition, _inputHistories.ToArray(), _inputButton)) {
-				if(_playingCommand != command) {
-					FinishCommand();
+		if((_playingCommand == null || _commandCount >= _playingCommand.cancelStartTime ) && (_condition & Define.Condition.Damage) == 0) {
+			foreach(var command in _commands) {
+				if(command.IsSuccess(_condition, _inputHistories.ToArray(), _inputButton)) {
+					if(_playingCommand != command) {
+						FinishCommand();
 
-					switch(command.animKeyType) {
-					case Define.AnimKeyType.Bool:
-						_animator.SetBool(command.animKey, command.animKeyValue != 0);
-						break;
-					case Define.AnimKeyType.Int:
-						_animator.SetInteger(command.animKey, Mathf.FloorToInt(command.animKeyValue));
-						break;
-					case Define.AnimKeyType.Float:
-						_animator.SetFloat(command.animKey, command.animKeyValue);
-						break;
-					}
-					if(command.force.sqrMagnitude > 0) {
-						var force = command.force;
-						if((_condition & Define.Condition.Reverce) != 0)
-							force.x = -force.x;
-						_rootRigid.AddForce(force, ForceMode.VelocityChange);
-					}
-					if((command.condition & Define.Condition.Air) != 0) {
-						_condition |= Define.Condition.Air;
-						_condition &= ~Define.Condition.Ground;
+						switch(command.animKeyType) {
+						case Define.AnimKeyType.Bool:
+							_animator.SetBool(command.animKey, command.animKeyValue != 0);
+							break;
+						case Define.AnimKeyType.Int:
+							_animator.SetInteger(command.animKey, Mathf.FloorToInt(command.animKeyValue));
+							break;
+						case Define.AnimKeyType.Float:
+							_animator.SetFloat(command.animKey, command.animKeyValue);
+							break;
+						}
+						_animator.SetBool("cancel", true);
 
-						_rootCollider.height = 0;
-						_rootRigid.constraints &= ~RigidbodyConstraints.FreezeRotationX;
+						if(command.damagePoint != 0) {
+							foreach(Define.BodyPart value in System.Enum.GetValues(typeof(Define.BodyPart))) {
+								if((command.damagePoint & value) != 0) {
+									_partMap[value].attack.gameObject.SetActive(true);
+								}
+							}
+						}
+
+						if(command.force.sqrMagnitude > 0) {
+							var force = command.force;
+							if((_condition & Define.Condition.Reverce) != 0)
+								force.x = -force.x;
+							_rootRigid.AddForce(force, ForceMode.VelocityChange);
+						}
+						if((command.conditionOn & Define.Condition.Air) != 0) {
+//							_rootCollider.height = 0;
+							_rootRigid.constraints &= ~RigidbodyConstraints.FreezeRotationX;
+							_animator.SetFloat("jump", 1);
+						}
+						_condition |= command.conditionOn;
+						_condition &= ~command.conditionOff;
+						_playingCommand = command;
+						_commandCount = 0;
 					}
-					_condition |= command.condition;
-					_playingCommand = command;
-					_commandCount = 0;
+					break;
 				}
-				break;
 			}
 		}
 
-		foreach(var part in _bodyParts.Values) {
-			part.body.transform.localPosition = part.pos;
+		foreach(var part in _partMap.Values) {
+			part.rigid.transform.localPosition = part.pos;
+		}
+	}
+
+	void ResetKinetic() {
+		foreach(var partInfo in _partInfos) {
+			if(partInfo.type != Define.BodyPart.Head && partInfo.type != Define.BodyPart.Body)
+				partInfo.rigid.isKinematic = false;
 		}
 	}
 
@@ -224,14 +304,51 @@ public class PlayerController : MonoBehaviour {
 			}
 			_condition &= ~Define.Condition.Crouch;
 		}
+		foreach(var partInfo in _partInfos) {
+			if(partInfo.attack != null) {
+				partInfo.attack.gameObject.SetActive(false);
+			}
+		}
+		_condition |= Define.Condition.Look;
 		_playingCommand = null;		
+	}
+
+	public void HitAttack(CommandData command, Vector3 pos, Vector2 velocity) {
+		// todo 吹き飛ばし
+		_hp -= Mathf.FloorToInt(command.damage * (1 + (velocity.sqrMagnitude) / 10000));
+		var force = command.blowForce + velocity;
+		if((_condition & Define.Condition.Reverce) != 0)
+			force.x = -force.x;
+		_rootRigid.AddForce(force / 2);
+		_rival._rootRigid.AddForce(-force / 2);
+		var sizeDelta = _hpGauge.rectTransform.sizeDelta;
+		sizeDelta.x = 128 * _hp / 1000f;
+		_hpGauge.rectTransform.sizeDelta = sizeDelta;
+
+		_animator.SetBool("damage", true);
+		GameManager.instance.CreateImpactEffect(pos);
+
+		if((_condition & Define.Condition.Damage) != 0) {
+			_comboCount++;
+			if(_comboCount > 1) {
+				_comboText.text = string.Format("{0} Hits!!", _comboCount);
+				_comboText.enabled = true;
+				_comboText.rectTransform.localScale = Vector3.one * 1.25f;
+				_comboText.rectTransform.DOScale(Vector3.one, 0.1f);
+				_comboDispCount = 2;
+			}
+		}
+		else {
+			_comboCount = 0;
+			_condition |= Define.Condition.Damage;
+		}
+		_blowCount = command.blowTime;
 	}
 
 	void OnCollisionEnter(Collision collision) {
 		foreach(var contact in collision.contacts) {
 			if(contact.normal.y > 0.5f) {
 				_rootCollider.height = _standHeight;
-				_condition |= Define.Condition.Ground;
 				_condition &= ~Define.Condition.Air;
 
 				_rootRigid.constraints |= RigidbodyConstraints.FreezeRotationX;
@@ -259,7 +376,7 @@ public class PlayerController : MonoBehaviour {
 		GUILayout.EndVertical();
 		GUILayout.FlexibleSpace();
 		if(_playingCommand != null) {
-			GUILayout.Label(_playingCommand.name);
+				GUILayout.Label(_playingCommand.name);
 		}
 		GUILayout.EndHorizontal();
 		GUILayout.EndArea();

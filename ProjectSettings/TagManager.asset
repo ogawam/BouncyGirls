@@ -15,10 +15,10 @@ TagManager:
   - 
   - UnitRoot
   - Terrain
-  - 
-  - 
-  - 
-  - 
+  - 1PAttack
+  - 2PAttack
+  - 1PDamage
+  - 2PDamage
   - 
   - 
   - 

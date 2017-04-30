@@ -14,11 +14,13 @@ public class GameManager : Singleton<GameManager> {
 	[SerializeField] float _heightOffset;
 	[SerializeField] float _heightRefer;
 
+	[SerializeField] EffectController _impactEffect;
+
 	void Start () {
 		Application.targetFrameRate = 60;
-		_players[0].rivalTrans = _players[1].transform;
+		_players[0].rival = _players[1];
 		_players[0].Setup(1);
-		_players[1].rivalTrans = _players[0].transform;
+		_players[1].rival = _players[0];
 		_players[1].Setup(2);
 	}
 	
@@ -33,5 +35,9 @@ public class GameManager : Singleton<GameManager> {
 		pos = Vector2.Lerp(pos, center, 0.2f);
 		pos.z = z;
 		Camera.main.transform.position = pos;
+	}
+
+	public void CreateImpactEffect(Vector3 pos) {
+		Instantiate(_impactEffect, pos, Camera.main.transform.rotation);
 	}
 }

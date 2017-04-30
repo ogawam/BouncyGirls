@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -14,31 +15,42 @@ public class CommandData {
 	public string name { get { return _name; } }
 
 	// 成立条件
-	[SerializeField] Define.Condition _requiredCondition;
+	[UnityEngine.Serialization.FormerlySerializedAs("_requiredCondition")]
+	[EnumFlags][SerializeField] Define.Condition _requiredConditionOn;
+	[EnumFlags][SerializeField] Define.Condition _requiredConditionOff;
 
 	[UnityEngine.Serialization.FormerlySerializedAs("_command")]
-	[SerializeField] List<Define.Button> _buttons;
-	[SerializeField] Define.Button _input;
-	public bool IsSuccess(Define.Condition condition, InputHistory[] input, Define.Button current) {
-		if(!IsKeep(current)) {
+	[EnumFlags][SerializeField] List<Define.Button> _buttons;
+	[EnumFlags][SerializeField] Define.Button _input;
+
+	Define.Button ConvertButton(Define.Button src, Define.Condition condition) {
+		var dst = src;
+		if((condition & Define.Condition.Reverce) != 0) {
+			dst &= ~(Define.Button.L | Define.Button.R);
+			if((src & Define.Button.L) != 0) {
+				dst |= Define.Button.R;
+			}
+			if((src & Define.Button.R) != 0) {
+				dst |= Define.Button.L;
+			}
+		}
+		return dst;
+	}
+
+	public bool IsSuccess(Define.Condition condition, InputHistory[] input, Define.Button button) {
+		if(!IsKeep(ConvertButton(button, condition))) {
 			return false;
 		}
 
-		if(_requiredCondition != (_requiredCondition & condition)) {
+		if(_requiredConditionOn != (_requiredConditionOn & condition) ||
+			_requiredConditionOff != 0 && (_requiredConditionOff & condition) != 0) 
+		{
 			return false;
 		}
 		
 		if(_buttons.Count <= input.Length) {
 			for(int i = 0; i < _buttons.Count; ++i) {
-				var button = input[i].button;
-				if((condition & Define.Condition.Reverce) != 0) {
-					button &= ~(Define.Button.L | Define.Button.R);
-					if((input[i].button & Define.Button.L) != 0)
-						button |= Define.Button.R;
-					if((input[i].button & Define.Button.R) != 0)
-						button |= Define.Button.L;
-				}
-				if(_buttons[i] != button || input[i].time < 0) {
+				if(_buttons[i] != ConvertButton(input[i].button, condition) || input[i].time < 0) {
 					return false;
 				}
 			}
@@ -56,13 +68,17 @@ public class CommandData {
 	}
 
 	// 性能
-	[SerializeField] Define.Condition _condition;
-	public Define.Condition condition { get { return _condition; } }
+	[UnityEngine.Serialization.FormerlySerializedAs("_condition")]
+	[EnumFlags][SerializeField] Define.Condition _conditionOn;
+	public Define.Condition conditionOn { get { return _conditionOn; } }
+
+	[EnumFlags][SerializeField] Define.Condition _conditionOff;
+	public Define.Condition conditionOff { get { return _conditionOff; } }
 
 	[SerializeField] float _damageValue = 0;
 	public float damage { get { return _damageValue; } }
 
-	[SerializeField] Define.BodyPart _damagePoint;
+	[EnumFlags][SerializeField] Define.BodyPart _damagePoint;
 	public Define.BodyPart damagePoint { get { return _damagePoint; } }
 
 	[SerializeField] float _totalTime = 0;
@@ -79,6 +95,12 @@ public class CommandData {
 
 	[SerializeField] float _groundMove = 0;
 	public float groundMove { get { return _groundMove; } }
+
+	[SerializeField] Vector2 _blowForce;
+	public Vector2 blowForce { get { return _blowForce; } }
+
+	[SerializeField] float _blowTime;
+	public float blowTime { get { return _blowTime; } }
 
 	// アニメーション
 	[SerializeField] string _animKey;
